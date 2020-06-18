@@ -3,7 +3,7 @@ const express = require('express');
 const ejs = require('ejs');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const encrypt = require('mongoose-encryption');
+const md5 = require('md5');
 
 // managing environment variables for production and development cases
 if (process.env.NODE_ENV !== "production") {
@@ -40,9 +40,6 @@ const userSchema = new mongoose.Schema({
   password: String
 });
 
-// encrypting password field in userSchema
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
-
 // creating a new user model
 const User = new mongoose.model("User", userSchema);
 
@@ -65,7 +62,7 @@ app.get("/login", function(req, res) {
 app.post("/register", function(req, res) {
   const user = new User({
     email: req.body.email,
-    password: req.body.password
+    password: md5(req.body.password)
   });
   user.save(function(err, docs) {
     if (!err) {
@@ -80,7 +77,7 @@ app.post("/register", function(req, res) {
 app.post("/login", function(req, res) {
   const user = {
     email: req.body.email,
-    password: req.body.password
+    password: md5(req.body.password)
   };
   User.findOne({
     email: user.email
