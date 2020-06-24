@@ -3,31 +3,22 @@ const express = require('express');
 const ejs = require('ejs');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const findOrCreate = require('mongoose-findorcreate')
 const session = require('express-session');
 const MongoStore = require('connect-mongo')(session);
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
-// managing environment variables for production and development cases
-if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config({
-    silent: true
-  });
-}
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const FacebookStrategy = require('passport-facebook').Strategy;
+const GitHubStrategy = require('passport-github2').Strategy;
+const config = require(__dirname + '/config.js');
 
 // connecting to mongodb server
 const URL = "mongodb://localhost:27017/usersDB";
-mongoose.connect(URL, {
-  useNewUrlParser: true,
-  useFindAndModify: false,
-  useUnifiedTopology: true,
-  useCreateIndex: true
-});
+mongoose.connect(URL, config.mongooseConnectionOptions);
 const sessionStore = new MongoStore({
   mongooseConnection: mongoose.connection
 })
-// getting env variables
-const SECRET = process.env.SECRET;
-const COOKIE_NAME = process.env.COOKIE_NAME;
 
 // creating an express app
 const app = express();
@@ -41,8 +32,8 @@ app.use(bodyParser.urlencoded({
 app.use(express.static("public"));
 // using express-session and passport
 app.use(session({
-  name: COOKIE_NAME,
-  secret: SECRET,
+  name: config.cookieName,
+  secret: config.cookieSecret,
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
@@ -52,23 +43,76 @@ app.use(passport.session());
 
 // creating a mongoose schema for users collection
 const userSchema = new mongoose.Schema({
+  name: String,
   email: String,
-  password: String
+  provider: String,
+  password: String,
+  profileId: String
 });
 // plugin passport-local-mongoose
 userSchema.plugin(passportLocalMongoose, {
   usernameField: "email"
 });
+// plugin findOrCreate
+userSchema.plugin(findOrCreate);
+
 // creating a new user model
 const User = new mongoose.model("User", userSchema);
+
+// function to find or create users in our database after oAuth transaction
+function addUser(profile, done) {
+  User.findOrCreate({
+    name: (profile._json.name || "None"),
+    email: (profile._json.email || profile.profileUrl || "None"),
+    provider: profile.provider,
+    profileId: profile.id
+  }, function(err, user) {
+    return done(err, user);
+  });
+}
+
 // using a configured passport-local LocalStrategy
 passport.use(User.createStrategy());
+
+// using passport-google-oauth strategy
+passport.use(new GoogleStrategy(config.googleOptions,
+  function(accessToken, refreshToken, profile, done) {
+    addUser(profile, done);
+  }
+));
+
+// using passport-facebook strategy
+passport.use(new FacebookStrategy(config.facebookOptions,
+  function(accessToken, refreshToken, profile, done) {
+    addUser(profile, done);
+  }
+));
+
+// using passport-github strategy
+passport.use(new GitHubStrategy(config.githubOptions,
+  function(accessToken, refreshToken, profile, done) {
+    addUser(profile, done);
+  }
+));
+
 // using static serialize and deserialize of model for passport session support
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+passport.serializeUser(function(user, done) {
+  done(null, user.id);
+});
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function(err, user) {
+    done(err, user);
+  });
+});
 
 // storing ports for production and development
 const PORT = (process.env.PORT || 3000);
+
+// storing redirect routes for success and failure
+const redirectRoutes = {
+  successRedirect: "/secrets",
+  failureRedirect: "/login"
+};
 
 // disabling caching for /secrets route
 app.use("/secrets", function(req, res, next) {
@@ -80,6 +124,18 @@ app.use("/secrets", function(req, res, next) {
 app.get("/", function(req, res) {
   res.render("home");
 });
+
+////////// route handlers for google oAuth //////////
+app.get("/auth/google", passport.authenticate("google", config.googleScope));
+app.get("/auth/google/sneakybeaky", passport.authenticate("google", redirectRoutes));
+
+////////// route handlers for facebook oAuth //////////
+app.get("/auth/facebook", passport.authenticate("facebook"));
+app.get("/auth/facebook/sneakybeaky", passport.authenticate("facebook", redirectRoutes));
+
+////////// route handlers for github oAuth //////////
+app.get("/auth/github", passport.authenticate("github", config.githubScope));
+app.get("/auth/github/sneakybeaky", passport.authenticate("github", redirectRoutes));
 
 // handling GET request to /register route
 app.get("/register", function(req, res) {
@@ -113,7 +169,7 @@ app.get("/logout", function(req, res) {
   // removing user from session
   req.logout();
   // clearing cookie from browser
-  res.clearCookie(COOKIE_NAME);
+  res.clearCookie(config.cookieName);
   // removing the current session
   req.session.destroy(function(err) {
     if (!err) {
@@ -142,7 +198,8 @@ app.post("/register", function(req, res) {
   };
   // registering new user to our database
   User.register({
-    email: user.email
+    email: user.email,
+    provider: "local"
   }, user.password, function(err, user) {
     if (err) {
       // redirecting to register page in case of error
