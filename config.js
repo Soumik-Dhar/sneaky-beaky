@@ -6,12 +6,23 @@ if (process.env.NODE_ENV !== "production") {
 }
 // exporting object containing configuration options
 module.exports = {
+  // URL for mongoose connection
+  URL: "mongodb://localhost:27017/usersDB",
   // options for mongoose connection
   mongooseConnectionOptions: {
     useNewUrlParser: true,
     useFindAndModify: false,
     useUnifiedTopology: true,
     useCreateIndex: true
+  },
+  // options for configuring passport-local-mongoose plugin
+  passportLocalMongooseOptions: {
+    usernameField: "email",
+    errorMessages: {
+      IncorrectPasswordError: 'Password is incorrect!',
+      IncorrectUsernameError: 'Email does not exist!',
+      UserExistsError: "Email already exists!"
+    }
   },
   // options for configuring google oAuth strategy
   googleOptions: {

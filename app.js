@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const findOrCreate = require('mongoose-findorcreate')
 const session = require('express-session');
+const flash = require('express-flash');
 const MongoStore = require('connect-mongo')(session);
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
@@ -14,8 +15,7 @@ const GitHubStrategy = require('passport-github2').Strategy;
 const config = require(__dirname + '/config.js');
 
 // connecting to mongodb server
-const URL = "mongodb://localhost:27017/usersDB";
-mongoose.connect(URL, config.mongooseConnectionOptions);
+mongoose.connect(config.URL, config.mongooseConnectionOptions);
 const sessionStore = new MongoStore({
   mongooseConnection: mongoose.connection
 })
@@ -40,6 +40,8 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// using expres-flash
+app.use(flash());
 
 // creating a mongoose schema for users collection
 const userSchema = new mongoose.Schema({
@@ -47,12 +49,11 @@ const userSchema = new mongoose.Schema({
   email: String,
   provider: String,
   password: String,
-  profileId: String
+  profileId: String,
+  secret: String
 });
 // plugin passport-local-mongoose
-userSchema.plugin(passportLocalMongoose, {
-  usernameField: "email"
-});
+userSchema.plugin(passportLocalMongoose, config.passportLocalMongooseOptions);
 // plugin findOrCreate
 userSchema.plugin(findOrCreate);
 
@@ -144,9 +145,32 @@ app.get("/register", function(req, res) {
 
 // handling GET request to /secrets route
 app.get("/secrets", function(req, res) {
-  // rendering secrets page if user is loggin in
+  // rendering secrets page if user is logged in
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    User.find({
+      secret: {
+        $ne: null
+      }
+    }, function(err, docs) {
+      if (!err) {
+        if (docs) {
+          res.render("secrets", {
+            secrets: docs
+          });
+        }
+      }
+    });
+    // redirecting to login page for unauthenticated user
+  } else {
+    res.redirect("/login");
+  }
+});
+
+// handling GET request to /submit route
+app.get("/submit", function(req, res) {
+  // rendering secrets page if user is logged in
+  if (req.isAuthenticated()) {
+    res.render("submit");
     // redirecting to login page for unauthenticated user
   } else {
     res.redirect("/login");
@@ -155,7 +179,7 @@ app.get("/secrets", function(req, res) {
 
 // handling GET request to /login route
 app.get("/login", function(req, res) {
-  // redirecting to secrets page if user is already loggin in
+  // redirecting to secrets page if user is already logged in
   if (req.isAuthenticated()) {
     res.redirect("/secrets");
     // rendering login page for unauthenticated user
@@ -181,9 +205,7 @@ app.get("/logout", function(req, res) {
 // function to establish session for registered or authenticated user
 function signIn(user, req, res) {
   req.login(user, function(err) {
-    if (err) {
-      console.log("LogIn error : " + err);
-    } else {
+    if (!err) {
       res.redirect("/secrets");
     }
   });
@@ -203,7 +225,7 @@ app.post("/register", function(req, res) {
   }, user.password, function(err, user) {
     if (err) {
       // redirecting to register page in case of error
-      console.log("Registration error : " + err);
+      req.flash("register", err.message);
       res.redirect("/register");
     } else {
       // signing in the new user and establishing a session
@@ -221,7 +243,7 @@ app.post("/login", function(req, res) {
     } else {
       if (!user) {
         // redirecting to login page in case of incorrect username or password
-        console.log("Authentication error : " + info);
+        req.flash("login", info.message);
         res.redirect("/login");
       } else {
         // signing in the new user and establishing a session
@@ -229,6 +251,23 @@ app.post("/login", function(req, res) {
       }
     }
   })(req, res);
+});
+
+// handling POST request to /submit route
+app.post("/submit", function(req, res) {
+  const secret = req.body.secret;
+  User.findById(req.user.id, function(err, user) {
+    if (!err) {
+      if (user) {
+        user.secret = secret;
+        user.save(function(err) {
+          if (!err) {
+            res.redirect("/secrets");
+          }
+        });
+      }
+    }
+  });
 });
 
 // starting server on port

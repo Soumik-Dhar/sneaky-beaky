@@ -1,20 +1,40 @@
-
 body {
   background-color: #E8ECEF;
+}
+
+h2 {
+  text-align: center;
+}
+
+.auth {
+  width: 20rem;
+}
+
+.local {
+  margin: 0 auto;
+  display: block;
 }
 
 .btn {
   text-align: center;
 }
 
+.card {
+  border-radius: 0.5rem;
+}
+
+.social-block .card-body {
+  padding: 0;
+}
+
 .centered {
-    padding-top: 200px;
-    text-align: center;
+  padding-top: 200px;
+  text-align: center;
 }
 
 .secret-text {
   text-align: center;
   font-size: 2rem;
   color: #fff;
-  background-color: #000;
+  background-color: #222;
 }
