@@ -18,7 +18,7 @@ const config = require(__dirname + '/config.js');
 mongoose.connect(config.URL, config.mongooseConnectionOptions);
 const sessionStore = new MongoStore({
   mongooseConnection: mongoose.connection
-})
+});
 
 // creating an express app
 const app = express();
@@ -109,11 +109,17 @@ passport.deserializeUser(function(id, done) {
 // storing ports for production and development
 const PORT = (process.env.PORT || 3000);
 
-// storing redirect routes for success and failure
-const redirectRoutes = {
-  successRedirect: "/secrets",
-  failureRedirect: "/login"
+// storing redirect routes for failure
+const failureRedirects = {
+  failureRedirect: "/login",
+  // failureFlash: true
 };
+
+// function to redirect to secrets page after authentication
+function openSecrets(req, res) {
+  req.flash("secrets", "Logged in successfully!");
+  res.redirect("/secrets");
+}
 
 // disabling caching for /secrets route
 app.use("/secrets", function(req, res, next) {
@@ -128,15 +134,24 @@ app.get("/", function(req, res) {
 
 ////////// route handlers for google oAuth //////////
 app.get("/auth/google", passport.authenticate("google", config.googleScope));
-app.get("/auth/google/sneakybeaky", passport.authenticate("google", redirectRoutes));
+app.get("/auth/google/sneakybeaky", passport.authenticate("google", failureRedirects), function(req, res) {
+  // redirecting to secrets page after login
+  openSecrets(req, res);
+});
 
 ////////// route handlers for facebook oAuth //////////
 app.get("/auth/facebook", passport.authenticate("facebook"));
-app.get("/auth/facebook/sneakybeaky", passport.authenticate("facebook", redirectRoutes));
+app.get("/auth/facebook/sneakybeaky", passport.authenticate("facebook", failureRedirects), function(req, res) {
+  // redirecting to secrets page after login
+  openSecrets(req, res);
+});
 
 ////////// route handlers for github oAuth //////////
 app.get("/auth/github", passport.authenticate("github", config.githubScope));
-app.get("/auth/github/sneakybeaky", passport.authenticate("github", redirectRoutes));
+app.get("/auth/github/sneakybeaky", passport.authenticate("github", failureRedirects), function(req, res) {
+  // redirecting to secrets page after login
+  openSecrets(req, res);
+});
 
 // handling GET request to /register route
 app.get("/register", function(req, res) {
@@ -181,7 +196,7 @@ app.get("/submit", function(req, res) {
 app.get("/login", function(req, res) {
   // redirecting to secrets page if user is already logged in
   if (req.isAuthenticated()) {
-    res.redirect("/secrets");
+    openSecrets(req, res);
     // rendering login page for unauthenticated user
   } else {
     res.render("login");
@@ -192,8 +207,6 @@ app.get("/login", function(req, res) {
 app.get("/logout", function(req, res) {
   // removing user from session
   req.logout();
-  // clearing cookie from browser
-  res.clearCookie(config.cookieName);
   // removing the current session
   req.session.destroy(function(err) {
     if (!err) {
@@ -205,8 +218,9 @@ app.get("/logout", function(req, res) {
 // function to establish session for registered or authenticated user
 function signIn(user, req, res) {
   req.login(user, function(err) {
+    // redirecting to secrets page after login
     if (!err) {
-      res.redirect("/secrets");
+      openSecrets(req, res);
     }
   });
 }

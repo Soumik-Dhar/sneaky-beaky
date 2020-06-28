@@ -1,13 +1,27 @@
+// setting local development state to true (false for deployment)
+const LOCAL_DEV = false;
+let connectionString = "";
+
 // managing environment variables for production and development cases
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config({
     silent: true
   });
 }
+
+// using local mongodb database or mongodb atlas depending on development state
+if (LOCAL_DEV) {
+  // storing local mongodb connection url
+  connectionString = "mongodb://localhost:27017/secretsDB";
+} else {
+  // storing mongodb atlas database connection string
+  connectionString = "mongodb+srv://" + process.env.MONGODB_ATLAS_USERNAME + ":" + process.env.MONGODB_ATLAS_PASSWORD + "@dev-test-cluster-i5jeu.mongodb.net/secretsDB?retryWrites=true&w=majority";
+}
+
 // exporting object containing configuration options
 module.exports = {
   // URL for mongoose connection
-  URL: "mongodb://localhost:27017/usersDB",
+  URL: connectionString,
   // options for mongoose connection
   mongooseConnectionOptions: {
     useNewUrlParser: true,
