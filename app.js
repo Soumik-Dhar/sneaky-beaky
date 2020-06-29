@@ -10,8 +10,8 @@ const MongoStore = require('connect-mongo')(session);
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const FacebookStrategy = require('passport-facebook').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
+const LinkedInStrategy = require('passport-linkedin-oauth2').Strategy;
 const config = require(__dirname + '/config.js');
 
 // connecting to mongodb server
@@ -63,8 +63,7 @@ const User = new mongoose.model("User", userSchema);
 // function to find or create users in our database after oAuth transaction
 function addUser(profile, done) {
   User.findOrCreate({
-    name: (profile._json.name || "None"),
-    email: (profile._json.email || profile.profileUrl || "None"),
+    name: (profile._json.name || profile.displayName || "None"),
     provider: profile.provider,
     profileId: profile.id
   }, function(err, user) {
@@ -82,15 +81,15 @@ passport.use(new GoogleStrategy(config.googleOptions,
   }
 ));
 
-// using passport-facebook strategy
-passport.use(new FacebookStrategy(config.facebookOptions,
+// using passport-github strategy
+passport.use(new GitHubStrategy(config.githubOptions,
   function(accessToken, refreshToken, profile, done) {
     addUser(profile, done);
   }
 ));
 
-// using passport-github strategy
-passport.use(new GitHubStrategy(config.githubOptions,
+// using passport-linkedin-oauth strategy
+passport.use(new LinkedInStrategy(config.linkedinOptions,
   function(accessToken, refreshToken, profile, done) {
     addUser(profile, done);
   }
@@ -105,9 +104,6 @@ passport.deserializeUser(function(id, done) {
     done(err, user);
   });
 });
-
-// storing ports for production and development
-const PORT = (process.env.PORT || 3000);
 
 // storing redirect routes for failure
 const failureRedirects = {
@@ -139,16 +135,16 @@ app.get("/auth/google/sneakybeaky", passport.authenticate("google", failureRedir
   openSecrets(req, res);
 });
 
-////////// route handlers for facebook oAuth //////////
-app.get("/auth/facebook", passport.authenticate("facebook"));
-app.get("/auth/facebook/sneakybeaky", passport.authenticate("facebook", failureRedirects), function(req, res) {
+////////// route handlers for github oAuth //////////
+app.get("/auth/github", passport.authenticate("github", config.githubScope));
+app.get("/auth/github/sneakybeaky", passport.authenticate("github", failureRedirects), function(req, res) {
   // redirecting to secrets page after login
   openSecrets(req, res);
 });
 
-////////// route handlers for github oAuth //////////
-app.get("/auth/github", passport.authenticate("github", config.githubScope));
-app.get("/auth/github/sneakybeaky", passport.authenticate("github", failureRedirects), function(req, res) {
+////////// route handlers for linkedin oAuth //////////
+app.get("/auth/linkedin", passport.authenticate("linkedin", config.linkedinScope));
+app.get("/auth/linkedin/sneakybeaky", passport.authenticate("linkedin", failureRedirects), function(req, res) {
   // redirecting to secrets page after login
   openSecrets(req, res);
 });
@@ -162,6 +158,7 @@ app.get("/register", function(req, res) {
 app.get("/secrets", function(req, res) {
   // rendering secrets page if user is logged in
   if (req.isAuthenticated()) {
+    // searching for documents from users collection which contain secrets
     User.find({
       secret: {
         $ne: null
@@ -269,10 +266,13 @@ app.post("/login", function(req, res) {
 
 // handling POST request to /submit route
 app.post("/submit", function(req, res) {
+  // storing submitted secret
   const secret = req.body.secret;
+  // finding user from users collection whose id matches that of session user
   User.findById(req.user.id, function(err, user) {
     if (!err) {
       if (user) {
+      // inserting submitted secret to user document
         user.secret = secret;
         user.save(function(err) {
           if (!err) {
@@ -284,6 +284,8 @@ app.post("/submit", function(req, res) {
   });
 });
 
+// storing ports for production and development
+const PORT = (process.env.PORT || 3000);
 // starting server on port
 app.listen(PORT, function() {
   console.log("Server started on port " + PORT);

@@ -1,6 +1,7 @@
 // setting local development state to true (false for deployment)
 const LOCAL_DEV = false;
 let connectionString = "";
+let redirectURI = "";
 
 // managing environment variables for production and development cases
 if (process.env.NODE_ENV !== "production") {
@@ -13,9 +14,11 @@ if (process.env.NODE_ENV !== "production") {
 if (LOCAL_DEV) {
   // storing local mongodb connection url
   connectionString = "mongodb://localhost:27017/secretsDB";
+  redirectURI = "http://localhost:3000";
 } else {
   // storing mongodb atlas database connection string
   connectionString = "mongodb+srv://" + process.env.MONGODB_ATLAS_USERNAME + ":" + process.env.MONGODB_ATLAS_PASSWORD + "@dev-test-cluster-i5jeu.mongodb.net/secretsDB?retryWrites=true&w=majority";
+  redirectURI = "https://sneaky-beaky.herokuapp.com";
 }
 
 // exporting object containing configuration options
@@ -42,21 +45,21 @@ module.exports = {
   googleOptions: {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/sneakybeaky",
+    callbackURL: redirectURI + "/auth/google/sneakybeaky",
     userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
-  },
-  // options for configuring facebook oAuth strategy
-  facebookOptions: {
-    clientID: process.env.FACEBOOK_APP_ID,
-    clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackURL: "http://localhost:3000/auth/facebook/sneakybeaky",
-    profileFields: ["emails", "displayName"]
   },
   // options for configuring github oAuth strategy
   githubOptions: {
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/github/sneakybeaky"
+    callbackURL: "https://sneaky-beaky.herokuapp.com/auth/github/sneakybeaky"
+  },
+  // options for configuring linkedin oAuth strategy
+  linkedinOptions: {
+    clientID: process.env.LINKEDIN_CLIENT_ID,
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+    callbackURL: redirectURI + "/auth/linkedin/sneakybeaky",
+    state: true
   },
   // scope parameters for google oAuth
   googleScope: {
@@ -65,6 +68,10 @@ module.exports = {
   // scope parameters for github oAuth
   githubScope: {
     scope: ["user:email"]
+  },
+  // scope parameters for linkedin oAuth
+  linkedinScope: {
+    scope: ['r_emailaddress', 'r_liteprofile']
   },
   // cookie name
   cookieName: process.env.COOKIE_NAME,
